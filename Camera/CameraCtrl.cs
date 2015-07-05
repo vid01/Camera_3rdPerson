@@ -5,8 +5,7 @@ using System.Collections.Generic;
 /// Camera FSM - states are switched based on current player's actions
 /// 
 /// Author: Julie Maksymova
-/// Last Edited by: Julie Maksymova
-/// Last Edited Date: June 28/2015
+/// Last Edited Date: June 30/2015
 /// </summary>
 public class CameraCtrl : Singleton<CameraCtrl>
 {
@@ -19,6 +18,8 @@ public class CameraCtrl : Singleton<CameraCtrl>
    public List<string> occludeFilter;
    [HideInInspector]
    public bool occlusionMode = false;
+   // obj name in parent model that will be used as a raycast point for occlusion check
+   public string occludeColliderName = "Chest";
 
    [HideInInspector]
    // for zoom in / out position sync
@@ -30,8 +31,9 @@ public class CameraCtrl : Singleton<CameraCtrl>
    public bool invertY = false;
 
    // Cache helper objs for gizmos display --------
-   struct PlayerHelperPos
+   public struct PlayerHelperPos
    {
+      public string characterName;
       public GameObject focusPoint;
       public GameObject zoomPoint;
       public GameObject chasePoint;
@@ -40,10 +42,12 @@ public class CameraCtrl : Singleton<CameraCtrl>
       public GameObject inCoverPoint;
    }
 
-   private List<PlayerHelperPos> playerHelpers;
+   [HideInInspector]
+   public List<PlayerHelperPos> playerHelpers;
 
+   [HideInInspector]
    // Cache playable characters ------------------
-   private List<GameObject> playerChars;
+   public List<GameObject> playerChars;
 
    void Start()
    {
@@ -66,13 +70,14 @@ public class CameraCtrl : Singleton<CameraCtrl>
       else
       {
          Debug.Log("Camera chase target is not set!");
-      }      
+      }
    }
 
    void Awake()
    {
       playerHelpers = new List<PlayerHelperPos>();
-      CashHelperPoints();
+      playerChars = new List<GameObject>();
+      CacheHelperPoints();
    }
 
    public void ChangeState(BaseCameraState state)
@@ -173,35 +178,38 @@ public class CameraCtrl : Singleton<CameraCtrl>
       zoomState.zoomPoint = zoomSettings.zoomPoint;
       zoomState.rotationSpeed = zoomSettings.rotationSpeed;
 
-      // load crosshair for Zoom State ----------------------------------
+      // load crosshair for Zoom State -----------------------------------
       zoomState.crosshairImage = zoomSettings.crosshairImage;
    }
 
    void OnDrawGizmos()
    {
-      // display gizmos for helpers ----------------------------------------- 
-      if (playerHelpers.Count > 0)
+      // display gizmos for helpers --------------------------------------
+      if (GameState.Instance.inGame())
       {
-         foreach (PlayerHelperPos player in playerHelpers)
+         if (playerHelpers.Count > 0)
          {
-            // camera lookAt point
-            Gizmos.color = Color.green;
-            Gizmos.DrawWireSphere(player.focusPoint.transform.position, 0.1f);
-            // zoom point
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(player.zoomPoint.transform.position, 0.1f);
-            // chase state point
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(player.chasePoint.transform.position, 0.1f);
-            // camera raycast point for wall occlusion
-            Gizmos.color = Color.white;
-            Gizmos.DrawWireSphere(player.camCastPoint.transform.position, 0.05f);
-            // camera rotation pivot
-            Gizmos.color = Color.cyan;
-            Gizmos.DrawWireSphere(player.pivot.transform.position, 0.05f);
-            // inCover helper
-            Gizmos.color = Color.magenta;
-            Gizmos.DrawWireSphere(player.inCoverPoint.transform.position, 0.1f);
+            foreach (PlayerHelperPos player in playerHelpers)
+            {
+               // camera lookAt point
+               Gizmos.color = Color.green;
+               Gizmos.DrawWireSphere(player.focusPoint.transform.position, 0.1f);
+               // zoom point
+               Gizmos.color = Color.yellow;
+               Gizmos.DrawWireSphere(player.zoomPoint.transform.position, 0.1f);
+               // chase state point
+               Gizmos.color = Color.red;
+               Gizmos.DrawWireSphere(player.chasePoint.transform.position, 0.1f);
+               // camera raycast point for wall occlusion
+               Gizmos.color = Color.white;
+               Gizmos.DrawWireSphere(player.camCastPoint.transform.position, 0.05f);
+               // camera rotation pivot
+               Gizmos.color = Color.cyan;
+               Gizmos.DrawWireSphere(player.pivot.transform.position, 0.05f);
+               // inCover helper
+               Gizmos.color = Color.magenta;
+               Gizmos.DrawWireSphere(player.inCoverPoint.transform.position, 0.1f);
+            }
          }
       }
    }
@@ -220,20 +228,10 @@ public class CameraCtrl : Singleton<CameraCtrl>
    /// <summary>
    /// Saves helper positions on all playable characters.
    /// </summary>
-   public void CashHelperPoints()
+   public void CacheHelperPoints()
    {
-      // get all player characters
-      EntityData[] chars = GameObject.FindObjectsOfType<EntityData>();
-
-      // search characters for playable
-      List<GameObject> playerChars = new List<GameObject>();
-      foreach (EntityData entity in chars)
-      {
-         if (entity.GetComponent<IsPlayer>())
-         {
-            playerChars.Add(entity.gameObject);
-         }
-      }
+      // get access to all playable chars and their helper objs
+      FindPlayableCharacters();
 
       // edit helper locations
       foreach (GameObject character in playerChars)
@@ -245,56 +243,38 @@ public class CameraCtrl : Singleton<CameraCtrl>
          GameObject pivot = null;
          GameObject inCoverPoint = null;
 
-         if (UtilityScript.FindChildRecursively(character.transform, "FocusPoint"))
-         {
-            focusPoint = UtilityScript.FindChildRecursively(character.transform, "FocusPoint").gameObject;
-         }
-         else
+         focusPoint = UtilityScript.FindChildRecursively(character.transform, "FocusPoint").gameObject;
+         if (focusPoint == null)
          {
             Debug.LogError("No FocusPoint on " + character.gameObject.name);
          }
 
-         if (UtilityScript.FindChildRecursively(character.transform, "ZoomPoint"))
-         {
-            zoomPoint = UtilityScript.FindChildRecursively(character.transform, "ZoomPoint").gameObject;
-         }
-         else
+         zoomPoint = UtilityScript.FindChildRecursively(character.transform, "ZoomPoint").gameObject;
+         if (zoomPoint == null)
          {
             Debug.LogError("No ZoomPoint on " + character.gameObject.name);
          }
 
-         if (UtilityScript.FindChildRecursively(character.transform, "ChasePoint"))
-         {
-            chasePoint = UtilityScript.FindChildRecursively(character.transform, "ChasePoint").gameObject;
-         }
-         else
+         chasePoint = UtilityScript.FindChildRecursively(character.transform, "ChasePoint").gameObject;
+         if (chasePoint == null)
          {
             Debug.LogError("No ChasePoint on " + character.gameObject.name);
          }
 
-         if (UtilityScript.FindCamRaycastPoint(character.transform))
-         {
-            camCastPoint = UtilityScript.FindCamRaycastPoint(character.transform).gameObject;
-         }
-         else
+         camCastPoint = UtilityScript.FindCamRaycastPoint(character.transform).gameObject;
+         if (camCastPoint == null)
          {
             Debug.LogError("No CamCastPoint on " + character.gameObject.name);
          }
 
-         if (UtilityScript.FindChildRecursively(character.transform, "RotationPivot"))
-         {
-            pivot = UtilityScript.FindChildRecursively(character.transform, "RotationPivot").gameObject;
-         }
-         else
+         pivot = UtilityScript.FindChildRecursively(character.transform, "RotationPivot").gameObject;
+         if (pivot == null)
          {
             Debug.LogError("No RotationPivot on " + character.gameObject.name);
          }
 
-         if (UtilityScript.FindChildRecursively(character.transform, "InCoverPoint"))
-         {
-            inCoverPoint = UtilityScript.FindChildRecursively(character.transform, "InCoverPoint").gameObject;
-         }
-         else
+         inCoverPoint = UtilityScript.FindChildRecursively(character.transform, "InCoverPoint").gameObject;
+         if (inCoverPoint == null)
          {
             Debug.LogError("No InCoverPoint on " + character.gameObject.name);
          }
@@ -313,8 +293,27 @@ public class CameraCtrl : Singleton<CameraCtrl>
             currentPlayerPos.inCoverPoint = inCoverPoint;
             currentPlayerPos.camCastPoint = camCastPoint;
             currentPlayerPos.pivot = pivot;
-            
+            currentPlayerPos.characterName = character.name;
+
             playerHelpers.Add(currentPlayerPos);
+         }
+      }
+   }
+
+   /// <summary>
+   /// Fills in the list of playable characters in CameraCtrl for global access.
+   /// </summary>
+   public void FindPlayableCharacters()
+   {
+      // get all player characters
+      EntityData[] chars = GameObject.FindObjectsOfType<EntityData>();
+
+      // search characters for playable
+      foreach (EntityData entity in chars)
+      {
+         if (entity.GetComponent<IsPlayer>())
+         {
+            playerChars.Add(entity.gameObject);
          }
       }
    }
