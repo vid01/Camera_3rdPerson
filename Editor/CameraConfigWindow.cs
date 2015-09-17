@@ -20,6 +20,7 @@ public class CameraConfigWindow : EditorWindow
 
    // Global camera settings --------------------------
    private float maxSliderRange = 4f;
+   private float maxSpeedValue = 5f;
    private float chaseRotationSpeed = 1f;
    private float zoomRotationSpeed = 1f;
    private float runRotationSpeed = 1f;
@@ -33,7 +34,6 @@ public class CameraConfigWindow : EditorWindow
    GameObject focusPoint = null;
    GameObject zoomPoint = null;
    GameObject chasePoint = null;
-   GameObject raycastPoint = null;
    GameObject runPoint = null;
 
    [MenuItem("Game Configurations/Camera Config")]
@@ -77,18 +77,23 @@ public class CameraConfigWindow : EditorWindow
 
       // max adjustment range for helper point sliders
       GUILayout.BeginVertical();
-      maxSliderRange = EditorGUILayout.FloatField("Max slider range:", maxSliderRange);
+      maxSliderRange = EditorGUILayout.FloatField("Max radius:", maxSliderRange);
+      maxSpeedValue = EditorGUILayout.FloatField("Max speed value:", maxSpeedValue);
 
-      // boundary check
+      // boundary check - reset to defaults
       if (maxSliderRange < 2f || maxSliderRange > 6f)
       {
          maxSliderRange = 2f;
       }
+      if (maxSpeedValue < 0.3f || maxSpeedValue > 15f)
+      {
+         maxSpeedValue = 3f;
+      }
 
       // rotation speed sliders
-      chaseRotationSpeed = EditorGUILayout.Slider("Chase rotation speed:", chaseRotationSpeed, 1f, 20f);
-      zoomRotationSpeed = EditorGUILayout.Slider("Zoom rotation speed:", zoomRotationSpeed, 1f, 20f);
-      runRotationSpeed = EditorGUILayout.Slider("Run rotation speed:", runRotationSpeed, 1f, 20f);
+      chaseRotationSpeed = EditorGUILayout.Slider("Chase rotation speed:", chaseRotationSpeed, 1f, maxSpeedValue);
+      zoomRotationSpeed = EditorGUILayout.Slider("Zoom rotation speed:", zoomRotationSpeed, 0.3f, maxSpeedValue);
+      runRotationSpeed = EditorGUILayout.Slider("Run rotation speed:", runRotationSpeed, 1f, maxSpeedValue);
       // set Y axis invert
       CameraCtrl.Instance.invertY = EditorGUILayout.Toggle("Invert Y axis", CameraCtrl.Instance.invertY);
       GUILayout.EndVertical();
@@ -171,23 +176,6 @@ public class CameraConfigWindow : EditorWindow
             {
                runPoint = UtilityScript.FindChildByName(character.transform, "RunPoint").gameObject;
             }
-
-            if (raycastPoint == null)
-            {
-               // attach raycastPoint
-               raycastPoint = UtilityScript.FindChildByName(character.transform, "Spine").gameObject;
-               if (raycastPoint != null)
-               {
-                  if (raycastPoint.GetComponent<IsRaycastPoint>() == null)
-                  {
-                     raycastPoint.AddComponent<IsRaycastPoint>();
-                  }
-               }
-               else
-               {
-                  Debug.LogError("Transform 'Spine' was not found in parent " + character.name);
-               }
-            }
          }
          EditorUtility.DisplayDialog("CameraConfig", "Camera helper points generated.", "OK");
       }
@@ -223,9 +211,7 @@ public class CameraConfigWindow : EditorWindow
                   float focusY = focusPoint.transform.localPosition.y;
                   float focusZ = focusPoint.transform.localPosition.z;
 
-                  focusX = EditorGUILayout.Slider("FocusPoint X", focusX, -maxSliderRange, maxSliderRange);
-                  focusY = EditorGUILayout.Slider("FocusPoint Y", focusY, -maxSliderRange, maxSliderRange);
-                  focusZ = EditorGUILayout.Slider("FocusPoint Z", focusZ, -maxSliderRange, maxSliderRange);
+                  focusZ = EditorGUILayout.Slider("Radius", focusZ, -maxSliderRange, maxSliderRange);
                   focusPoint.transform.localPosition = new Vector3(focusX, focusY, focusZ);
                }
                GUILayout.Label("ZoomPoint", EditorStyles.label);
@@ -235,9 +221,7 @@ public class CameraConfigWindow : EditorWindow
                   float zoomY = zoomPoint.transform.localPosition.y;
                   float zoomZ = zoomPoint.transform.localPosition.z;
 
-                  zoomX = EditorGUILayout.Slider("ZoomPoint X", zoomX, -maxSliderRange, maxSliderRange);
-                  zoomY = EditorGUILayout.Slider("ZoomPoint Y", zoomY, -maxSliderRange, maxSliderRange);
-                  zoomZ = EditorGUILayout.Slider("ZoomPoint Z", zoomZ, -maxSliderRange, maxSliderRange);
+                  zoomZ = EditorGUILayout.Slider("Radius", zoomZ, -maxSliderRange, maxSliderRange);
                   zoomPoint.transform.localPosition = new Vector3(zoomX, zoomY, zoomZ);
                }
                GUILayout.Label("ChasePoint", EditorStyles.label);
@@ -247,9 +231,7 @@ public class CameraConfigWindow : EditorWindow
                   float chaseY = chasePoint.transform.localPosition.y;
                   float chaseZ = chasePoint.transform.localPosition.z;
 
-                  chaseX = EditorGUILayout.Slider("ChasePoint X", chaseX, -maxSliderRange, maxSliderRange);
-                  chaseY = EditorGUILayout.Slider("ChasePoint Y", chaseY, -maxSliderRange, maxSliderRange);
-                  chaseZ = EditorGUILayout.Slider("ChasePoint Z", chaseZ, -maxSliderRange, maxSliderRange);
+                  chaseZ = EditorGUILayout.Slider("Radius", chaseZ, -maxSliderRange, maxSliderRange);
                   chasePoint.transform.localPosition = new Vector3(chaseX, chaseY, chaseZ);
                }
                GUILayout.Label("RunPoint", EditorStyles.label);
@@ -259,9 +241,7 @@ public class CameraConfigWindow : EditorWindow
                   float runY = runPoint.transform.localPosition.y;
                   float runZ = runPoint.transform.localPosition.z;
 
-                  runX = EditorGUILayout.Slider("RunPoint X", runX, -maxSliderRange, maxSliderRange);
-                  runY = EditorGUILayout.Slider("RunPoint Y", runY, -maxSliderRange, maxSliderRange);
-                  runZ = EditorGUILayout.Slider("RunPoint Z", runZ, -maxSliderRange, maxSliderRange);
+                  runZ = EditorGUILayout.Slider("Radius", runZ, -maxSliderRange, maxSliderRange);
                   runPoint.transform.localPosition = new Vector3(runX, runY, runZ);
                }
                EditorGUI.indentLevel--;
@@ -409,10 +389,12 @@ public class CameraConfigWindow : EditorWindow
             }
          }
 
-         CameraCtrl camCtrl = CameraCtrl.Instance;
-         camCtrl.chaseRotationSpeed = chaseRotationSpeed;
-         camCtrl.zoomRotationSpeed = zoomRotationSpeed;
-         camCtrl.runRotationSpeed = runRotationSpeed;
+         // apply speed settings from XML
+         GameObject player = FindObjectOfType<IsPlayer>().gameObject;
+         PlayerInput player_input = player.GetComponent<PlayerInput>();
+         player_input.walkSpeed = chaseRotationSpeed;
+         player_input.zoomSpeed = zoomRotationSpeed;
+         player_input.runSpeed = runRotationSpeed;
       }
    }
 
@@ -450,6 +432,11 @@ public class CameraConfigWindow : EditorWindow
                }
             }
          }
+
+         // recalculate new radii from helper positions
+         GameObject player = FindObjectOfType<IsPlayer>().gameObject;
+         CameraCtrl_Helper camHelper = player.GetComponent<CameraCtrl_Helper>();
+         camHelper.CalculateRadius();
       }
    }
 }
